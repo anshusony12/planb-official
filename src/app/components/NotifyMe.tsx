@@ -63,19 +63,16 @@ export default function NotifyMe({ variant = 'hero' }: NotifyMeProps) {
         });
       }
 
-        const params = new URLSearchParams();
-        params.set('email', email);
-        params.set('source', variant);
-        if (captchaToken) {
-          params.set('captchaToken', captchaToken);
-        }
-
-      await fetch(endpoint, {
+        await fetch(endpoint, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'application/json',
           },
-          body: params.toString(),
+          body: JSON.stringify({
+            email,
+            source: variant,
+            ...(captchaToken ? { captchaToken } : {}),
+          }),
         });
 
       trackEvent('notify_me_submit');

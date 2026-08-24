@@ -117,20 +117,18 @@ export default function ContactPage() {
             });
           }
 
-          const params = new URLSearchParams({
-            name: form.name,
-            email: form.email,
-            reason: form.reason,
-            message: form.message,
-            ...(captchaToken ? { captchaToken } : {}),
-          });
-
           const res = await fetch(endpoint, {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/json',
               },
-              body: params.toString(),
+              body: JSON.stringify({
+                  name: form.name,
+                  email: form.email,
+                  reason: form.reason,
+                  message: form.message,
+                  ...(captchaToken ? { captchaToken } : {}),
+                }),
             });
 
           // Google Apps Script with no-cors always returns opaque response (type "opaque")
