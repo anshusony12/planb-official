@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import AppImage from '@/components/ui/AppImage';
+import NotifyMe from './NotifyMe';
 
 const activityPills = [
 { emoji: '🏏', label: 'Cricket' },
@@ -78,8 +79,13 @@ export default function HeroSection() {
 
             {/* Coming soon note */}
             <p className="text-sm text-muted-foreground">
-              🚀 Coming soon — <a href="#download-cta" className="text-primary font-medium hover:underline">Join the waitlist</a>
+              🚀 Coming soon — join the waitlist below
             </p>
+            {/* Notify Me */}
+            <div>
+              <p className="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-wide">Get notified at launch</p>
+              <NotifyMe variant="hero" />
+            </div>
           </div>
 
           {/* Right: Visual */}

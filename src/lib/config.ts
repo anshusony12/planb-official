@@ -1,7 +1,7 @@
 // Central configuration — update these values when app is live
 export const APP_STORE_URL = ''; // TODO: Add App Store URL when live
 export const PLAY_STORE_URL = ''; // TODO: Add Google Play URL when live
-export const SUPPORT_EMAIL = 'hello@planb.app'; // TODO: Confirm support email
+export const SUPPORT_EMAIL = 'contact@planbofficial.com'; // TODO: Confirm support email
 export const ANALYTICS_ID = ''; // TODO: Add analytics ID
 
 export const SOCIAL_LINKS = {
@@ -15,4 +15,7 @@ export const NAV_LINKS = [
   { label: 'Safety', href: '/safety' },
 ];
 
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://planb.app';
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://planbofficial.com/';
+export const CONTACT_FORM_ENDPOINT = process.env.NEXT_PUBLIC_CONTACT_FORM_ENDPOINT || '';
+export const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '';
+export const NOTIFY_ME_FORM_ENDPOINT = process.env.NEXT_PUBLIC_NOTIFY_ME_FORM_ENDPOINT || '';

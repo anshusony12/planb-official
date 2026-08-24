@@ -1,10 +1,20 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ScrollRevealInit from '@/app/components/ScrollRevealInit';
-import { SUPPORT_EMAIL } from '@/lib/config';
+import { SUPPORT_EMAIL, CONTACT_FORM_ENDPOINT, RECAPTCHA_SITE_KEY } from '@/lib/config';
+import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
+
+declare global {
+  interface Window {
+    grecaptcha: {
+      ready: (cb: () => void) => void;
+      execute: (siteKey: string, options: { action: string }) => Promise<string>;
+    };
+  }
+}
 
 type FormState = 'idle' | 'loading' | 'success' | 'error';
 
@@ -54,6 +64,19 @@ export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
+
+    // Load reCAPTCHA v3 script once
+    useEffect(() => {
+      if (!RECAPTCHA_SITE_KEY) return;
+      const scriptId = 'recaptcha-v3-script';
+      if (document.getElementById(scriptId)) return;
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
+      script.async = true;
+      document.head.appendChild(script);
+    }, []);
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -73,6 +96,48 @@ export default function ContactPage() {
     setStatus('loading');
     setSubmitted(true);
     // TODO: Connect to form endpoint (e.g. Formspree, Resend, or custom API route)
+    try {
+          const endpoint = CONTACT_FORM_ENDPOINT;
+          if (!endpoint) {
+            throw new Error('Form endpoint not configured.');
+          }
+
+        // Silently obtain reCAPTCHA v3 token
+          let recaptchaToken = '';
+          if (RECAPTCHA_SITE_KEY && typeof window !== 'undefined' && window.grecaptcha) {
+            recaptchaToken = await new Promise<string>((resolve, reject) => {
+              window.grecaptcha.ready(async () => {
+                try {
+                  const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'contact_form' });
+                  resolve(token);
+                } catch (err) {
+                  reject(err);
+                }
+              });
+            });
+          }
+
+          const params = new URLSearchParams({
+            name: form.name,
+            email: form.email,
+            reason: form.reason,
+            message: form.message,
+            ...(recaptchaToken ? { recaptchaToken } : {}),
+          });
+
+          const res = await fetch(`${endpoint}?${params.toString()}`, {
+            method: 'POST',
+            mode: 'no-cors',
+          });
+
+          // Google Apps Script with no-cors always returns opaque response (type "opaque")
+          // We treat any non-thrown response as success
+          void res;
+          setStatus('success');
+        } catch {
+          setStatus('error');
+          setSubmitted(false);
+        }
     // Simulating async submission
     await new Promise((r) => setTimeout(r, 1200));
     // For now, show success state. Replace with real API call.
