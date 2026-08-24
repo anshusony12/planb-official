@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
@@ -10,6 +11,8 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -31,6 +34,12 @@ export default function Header() {
     const el = document.getElementById('download-cta');
     if (el) el?.scrollIntoView({ behavior: 'smooth' });
     setMenuOpen(false);
+    if (pathname === '/') {
+      const el = document.getElementById('download-cta');
+      if (el) el?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      router?.push('/#download-cta');
+    }
   };
 
   return (

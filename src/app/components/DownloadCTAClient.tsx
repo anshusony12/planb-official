@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { trackEvent } from '@/lib/analytics';
+import NotifyMe from './NotifyMe';
 
 interface DownloadCTAClientProps {
   appStoreUrl: string;
@@ -33,38 +34,10 @@ export default function DownloadCTAClient({ appStoreUrl, playStoreUrl }: Downloa
             </div>
           </div>
         </div>
-        <div className="bg-white/10 border border-white/20 rounded-2xl px-8 py-4 backdrop-blur-sm">
+        <div className="bg-white/10 border border-white/20 rounded-2xl px-8 py-6 backdrop-blur-sm">
           <p className="text-white font-semibold mb-1">Join the Waitlist</p>
           <p className="text-white/60 text-sm mb-4">Be first to know when planB launches in your city.</p>
-          <form
-            className="flex gap-2 max-w-sm mx-auto"
-            onSubmit={(e) => {
-              e.preventDefault();
-              trackEvent('contact_form_submit');
-              // TODO: Connect to email service
-              const form = e.target as HTMLFormElement;
-              const emailInput = form.querySelector('input[type="email"]') as HTMLInputElement;
-              if (emailInput) {
-                alert(`Thanks! We'll notify ${emailInput.value} when planB launches.`);
-                form.reset();
-              }
-            }}
-          >
-            <label htmlFor="waitlist-email" className="sr-only">Email address</label>
-            <input
-              id="waitlist-email"
-              type="email"
-              required
-              placeholder="your@email.com"
-              className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-white placeholder-white/40 text-sm focus:outline-none focus:ring-2 focus:ring-white/40"
-            />
-            <button
-              type="submit"
-              className="bg-white text-primary font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-white/90 transition-colors"
-            >
-              Notify me
-            </button>
-          </form>
+          <NotifyMe variant="cta" />
         </div>
       </div>
     );
