@@ -103,9 +103,9 @@ export default function ContactPage() {
           }
 
         // Silently obtain reCAPTCHA v3 token
-          let recaptchaToken = '';
+          let captchaToken = '';
           if (RECAPTCHA_SITE_KEY && typeof window !== 'undefined' && window.grecaptcha) {
-            recaptchaToken = await new Promise<string>((resolve, reject) => {
+            captchaToken = await new Promise<string>((resolve, reject) => {
               window.grecaptcha.ready(async () => {
                 try {
                   const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'contact_form' });
@@ -122,13 +122,16 @@ export default function ContactPage() {
             email: form.email,
             reason: form.reason,
             message: form.message,
-            ...(recaptchaToken ? { recaptchaToken } : {}),
+            ...(captchaToken ? { captchaToken } : {}),
           });
 
-          const res = await fetch(`${endpoint}?${params.toString()}`, {
-            method: 'POST',
-            mode: 'no-cors',
-          });
+          const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: params.toString(),
+            });
 
           // Google Apps Script with no-cors always returns opaque response (type "opaque")
           // We treat any non-thrown response as success
