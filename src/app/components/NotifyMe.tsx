@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NOTIFY_ME_FORM_ENDPOINT, RECAPTCHA_SITE_KEY } from '@/lib/config';
 import { trackEvent } from '@/lib/analytics';
 
