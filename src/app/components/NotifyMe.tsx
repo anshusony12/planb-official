@@ -1,7 +1,18 @@
 'use client';
 import React, { useState } from 'react';
-import { NOTIFY_ME_FORM_ENDPOINT } from '@/lib/config';
+import { NOTIFY_ME_FORM_ENDPOINT, RECAPTCHA_SITE_KEY } from '@/lib/config';
 import { trackEvent } from '@/lib/analytics';
+
+
+declare global {
+  interface Window {
+    grecaptcha: {
+      ready: (cb: () => void) => void;
+      execute: (siteKey: string, options: { action: string }) => Promise<string>;
+    };
+  }
+}
+
 
 interface NotifyMeProps {
   variant?: 'hero' | 'cta';
@@ -11,6 +22,18 @@ export default function NotifyMe({ variant = 'hero' }: NotifyMeProps) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Load reCAPTCHA v3 script once
+    useEffect(() => {
+      if (!RECAPTCHA_SITE_KEY) return;
+      const scriptId = 'recaptcha-v3-script';
+      if (document.getElementById(scriptId)) return;
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
+      script.async = true;
+      document.head.appendChild(script);
+    }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -24,11 +47,36 @@ export default function NotifyMe({ variant = 'hero' }: NotifyMeProps) {
       if (!endpoint) {
         throw new Error('Endpoint not configured');
       }
-      const url = new URL(endpoint);
-      url.searchParams.set('email', email);
-      url.searchParams.set('source', variant);
 
-      await fetch(url.toString(), { method: 'GET', mode: 'no-cors' });
+      // Silently obtain reCAPTCHA v3 token
+      let captchaToken = '';
+      if (RECAPTCHA_SITE_KEY && typeof window !== 'undefined' && window.grecaptcha) {
+        captchaToken = await new Promise<string>((resolve, reject) => {
+          window.grecaptcha.ready(async () => {
+            try {
+              const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'notify_me' });
+              resolve(token);
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+      }
+
+        const params = new URLSearchParams();
+        params.set('email', email);
+        params.set('source', variant);
+        if (captchaToken) {
+          params.set('captchaToken', captchaToken);
+        }
+
+      await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: params.toString(),
+        });
 
       trackEvent('notify_me_submit');
       setStatus('success');
