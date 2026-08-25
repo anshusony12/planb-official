@@ -24,50 +24,70 @@ export default function NotifyMe({ variant = 'hero' }: NotifyMeProps) {
   const [errorMsg, setErrorMsg] = useState('');
 
   // Load reCAPTCHA v3 script once
-    useEffect(() => {
-      if (!RECAPTCHA_SITE_KEY) return;
-      const scriptId = 'recaptcha-v3-script';
-      if (document.getElementById(scriptId)) return;
-      const script = document.createElement('script');
-      script.id = scriptId;
-      script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
-      script.async = true;
-      document.head.appendChild(script);
-    }, []);
+     useEffect(() => {
+       if (!RECAPTCHA_SITE_KEY) return;
+       const scriptId = 'recaptcha-v3-script';
+       if (document.getElementById(scriptId)) return;
+       const script = document.createElement('script');
+       script.id = scriptId;
+       script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
+       script.async = true;
+       document.head.appendChild(script);
+     }, [RECAPTCHA_SITE_KEY]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!email || status === 'loading') return;
+      e.preventDefault();
+      if (!email || status === 'loading') return;
 
-    setStatus('loading');
-    setErrorMsg('');
+      setStatus('loading');
+      setErrorMsg('');
 
-    try {
-      const endpoint = NOTIFY_ME_FORM_ENDPOINT;
-      if (!endpoint) {
-        throw new Error('Endpoint not configured');
-      }
+      try {
+        let captchaToken = '';
 
-      // Silently obtain reCAPTCHA v3 token
-      let captchaToken = '';
-      if (RECAPTCHA_SITE_KEY && typeof window !== 'undefined' && window.grecaptcha) {
-        captchaToken = await new Promise<string>((resolve, reject) => {
-          window.grecaptcha.ready(async () => {
-            try {
-              const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'notify_me' });
-              resolve(token);
-            } catch (err) {
-              reject(err);
-            }
-          });
-        });
-      }
+        // 1. Safely obtain reCAPTCHA v3 token
+        if (RECAPTCHA_SITE_KEY && typeof window !== 'undefined') {
+          try {
+            captchaToken = await Promise.race([
+              new Promise<string>((resolve, reject) => {
+                // Poll briefly if script hasn't fully attached to window yet
+                const checkAndExecute = () => {
+                  if (window.grecaptcha && typeof window.grecaptcha.ready === 'function') {
+                    window.grecaptcha.ready(() => {
+                      if (window.grecaptcha?.execute) {
+                        window.grecaptcha
+                          .execute(RECAPTCHA_SITE_KEY, { action: 'notify_me' })
+                          .then(resolve)
+                          .catch(reject);
+                      } else {
+                        reject(new Error('grecaptcha.execute missing'));
+                      }
+                    });
+                  } else {
+                    // Retry in 100ms if script is still downloading
+                    setTimeout(checkAndExecute, 100);
+                  }
+                };
+                checkAndExecute();
+              }),
+              // Fallback: Continue after 4 seconds if reCAPTCHA stalls
+              new Promise<string>((resolve) =>
+                setTimeout(() => {
+                  console.warn('reCAPTCHA timed out; submitting without token');
+                  resolve('');
+                }, 4000)
+              ),
+            ]);
+          } catch (err) {
+            console.error('reCAPTCHA execution error:', err);
+          }
+        }
 
-        await fetch(endpoint, {
+        // 2. Submit payload to Next.js proxy route
+        const response = await fetch('/api/notify', {
           method: 'POST',
-          mode: 'no-cors',
           headers: {
-            'Content-Type': 'text/plain;charset=utf-8'
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             email,
@@ -76,14 +96,25 @@ export default function NotifyMe({ variant = 'hero' }: NotifyMeProps) {
           }),
         });
 
-      trackEvent('notify_me_submit');
-      setStatus('success');
-      setEmail('');
-    } catch {
-      setStatus('error');
-      setErrorMsg('Something went wrong. Please try again.');
-    }
-  };
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          if (typeof window.trackEvent === 'function') {
+            window.trackEvent('notify_me_submit');
+          }
+          setStatus('success');
+          setEmail('');
+        } else {
+          console.error('Submission failed:', data.message);
+          setStatus('error');
+          setErrorMsg(data.message || 'Submission failed');
+        }
+      } catch (err) {
+        console.error('Form submission error:', err);
+        setStatus('error');
+        setErrorMsg('Something went wrong. Please try again.');
+      }
+    };
 
   if (status === 'success') {
     return (

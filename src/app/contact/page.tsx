@@ -66,16 +66,16 @@ export default function ContactPage() {
 
 
     // Load reCAPTCHA v3 script once
-    useEffect(() => {
-      if (!RECAPTCHA_SITE_KEY) return;
-      const scriptId = 'recaptcha-v3-script';
-      if (document.getElementById(scriptId)) return;
-      const script = document.createElement('script');
-      script.id = scriptId;
-      script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
-      script.async = true;
-      document.head.appendChild(script);
-    }, []);
+     useEffect(() => {
+       if (!RECAPTCHA_SITE_KEY) return;
+       const scriptId = 'recaptcha-v3-script';
+       if (document.getElementById(scriptId)) return;
+       const script = document.createElement('script');
+       script.id = scriptId;
+       script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
+       script.async = true;
+       document.head.appendChild(script);
+     }, [RECAPTCHA_SITE_KEY]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, value } = e.target;
@@ -87,63 +87,85 @@ export default function ContactPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submitted) return;
+    if (submitted || status === 'loading') return;
+
     const validationErrors = validate(form);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
+
     setStatus('loading');
     setSubmitted(true);
-    // TODO: Connect to form endpoint (e.g. Formspree, Resend, or custom API route)
+
     try {
-          const endpoint = CONTACT_FORM_ENDPOINT;
-          if (!endpoint) {
-            throw new Error('Form endpoint not configured.');
-          }
+      let captchaToken = '';
 
-        // Silently obtain reCAPTCHA v3 token
-          let captchaToken = '';
-          if (RECAPTCHA_SITE_KEY && typeof window !== 'undefined' && window.grecaptcha) {
-            captchaToken = await new Promise<string>((resolve, reject) => {
-              window.grecaptcha.ready(async () => {
-                try {
-                  const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'contact_form' });
-                  resolve(token);
-                } catch (err) {
-                  reject(err);
+      // 1. Obtain reCAPTCHA v3 token safely with a 4s timeout fallback
+      if (RECAPTCHA_SITE_KEY && typeof window !== 'undefined') {
+        try {
+          captchaToken = await Promise.race([
+            new Promise<string>((resolve, reject) => {
+              const checkAndExecute = () => {
+                if (window.grecaptcha && typeof window.grecaptcha.ready === 'function') {
+                  window.grecaptcha.ready(() => {
+                    if (window.grecaptcha?.execute) {
+                      window.grecaptcha
+                        .execute(RECAPTCHA_SITE_KEY, { action: 'contact_form' })
+                        .then(resolve)
+                        .catch(reject);
+                    } else {
+                      reject(new Error('grecaptcha.execute is missing'));
+                    }
+                  });
+                } else {
+                  setTimeout(checkAndExecute, 100);
                 }
-              });
-            });
-          }
-
-          const res = await fetch(endpoint, {
-              method: 'POST',
-              mode: 'no-cors',
-              headers: {
-                'Content-Type': 'text/plain;charset=utf-8'
-              },
-              body: JSON.stringify({
-                  name: form.name,
-                  email: form.email,
-                  reason: form.reason,
-                  message: form.message,
-                  ...(captchaToken ? { captchaToken } : {}),
-                }),
-            });
-
-          // Google Apps Script with no-cors always returns opaque response (type "opaque")
-          // We treat any non-thrown response as success
-          void res;
-          setStatus('success');
-        } catch {
-          setStatus('error');
-          setSubmitted(false);
+              };
+              checkAndExecute();
+            }),
+            new Promise<string>((resolve) =>
+              setTimeout(() => {
+                console.warn('reCAPTCHA timed out; continuing without token');
+                resolve('');
+              }, 4000)
+            ),
+          ]);
+        } catch (err) {
+          console.error('reCAPTCHA execution error:', err);
         }
-    // Simulating async submission
-    await new Promise((r) => setTimeout(r, 1200));
-    // For now, show success state. Replace with real API call.
-    setStatus('success');
+      }
+
+      // 2. Submit payload to internal Next.js API proxy route
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          phone: form.phone || '',
+          reason: form.reason,
+          message: form.message,
+          ...(captchaToken ? { captchaToken } : {}),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setStatus('success');
+      } else {
+        console.error('Submission failed:', data.message);
+        setStatus('error');
+        setSubmitted(false);
+      }
+    } catch (err) {
+      console.error('Network/Submission Error:', err);
+      setStatus('error');
+      setSubmitted(false);
+    }
   }
 
   function handleReset() {
